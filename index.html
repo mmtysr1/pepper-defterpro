@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pepper Döner - Profesyonel Mobil Defter V7.4</title>
+    <title>Pepper Döner - Profesyonel Mobil Defter V7.5</title>
     
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -115,7 +115,7 @@
     </div>
 
     <header>
-        <h1>Pepper Döner Yönetim Paneli <span style="font-size:14px; color:var(--accent);">V7.4 PRO</span></h1>
+        <h1>Pepper Döner Yönetim Paneli <span style="font-size:14px; color:var(--accent);">V7.5 PRO</span></h1>
         <div class="header-buttons">
             <span id="syncStatus">Bulut Bağlantısı...</span>
             <button onclick="window.veriyiYedekle()" style="width: auto; background-color: #8e44ad;">Yedek İndir (JSON)</button>
@@ -146,6 +146,7 @@
         <button class="tab-btn" onclick="window.sekmeAc('raporSekmesi', this)">Raporlar & Analiz</button>
     </div>
 
+    <!-- SEKMELERİN İÇERİKLERİ -->
     <div id="kasaSekmesi" class="tab-content active">
         <div class="grid">
             <div class="card">
@@ -388,15 +389,16 @@
                 <h2>Finansal Filtreleme İstasyonları</h2>
                 <hr style="margin:15px 0; border:0; border-top:1px solid var(--border);">
                 <div class="filter-group">
-                    <button class="filter-btn active" onclick="window.filtreUygula('gunluk', this)">Bugün</button>
+                    <button class="filter-btn active" id="btnFilterTüm" onclick="window.filtreUygula('tum_zamanlar', this)">Tüm Zamanlar</button>
+                    <button class="filter-btn" onclick="window.filtreUygula('gunluk', this)">Bugün</button>
                     <button class="filter-btn" onclick="window.filtreUygula('haftalik', this)">Bu Hafta</button>
                     <button class="filter-btn" onclick="window.filtreUygula('aylik', this)">Bu Ay</button>
-                    <button class="filter-btn" onclick="window.filtreUygula('ozel', this)">Özel Tarih Aralığı</button>
+                    <button class="filter-btn" id="btnFilterOzel" onclick="window.filtreUygula('ozel', this)">Özel Tarih Aralığı</button>
                 </div>
-                <div id="ozelTarihGrup" style="display:none; gap:10px; margin-bottom:15px;">
+                <div id="ozelTarihGrup" style="display:none; gap:10px; margin-bottom:15px; width: 100%;">
                     <div style="flex:1;"><label>Başlangıç</label><input type="date" id="filtreBaslangic"></div>
                     <div style="flex:1;"><label>Bitiş</label><input type="date" id="filtreBitis"></div>
-                    <button onclick="window.ozelFiltreCalistir()" style="margin-top:22px; width:auto;">Sorgula</button>
+                    <button onclick="window.ozelFiltreCalistir()" style="margin-top:22px; width:auto; padding: 10px 20px;">Sorgula</button>
                 </div>
                 <div style="font-size:16px; line-height:2.2; margin-top:15px; margin-bottom: 20px;">
                     <strong>Seçilen Periyot Brüt Ciro:</strong> <span id="filtreBrutCiro" style="color:var(--success); font-weight:bold;">0,00 ₺</span><br>
@@ -457,7 +459,7 @@
     ];
     window.eldekiNakit = 0; window.bankaGaranti = 0; window.bankaIsbank = 0;
 
-    window.aktifFiltreModu = 'aylik';
+    window.aktifFiltreModu = 'tum_zamanlar'; // Varsayılanı tüm zamanlar yaptık ki dünkü veriler doğrudan gelsin.
     window.sonRaporMetrikleri = { baslangic: '', bitis: '', ciro: 0, masraf: 0, net: 0 };
 
     onValue(dbRef, (snapshot) => {
@@ -682,8 +684,42 @@
     function listeleGiderler() {
         const tbody = document.querySelector('#giderTablosu tbody'); if (!tbody) return; tbody.innerHTML = '';
         window.giderler.slice().sort((a,b) => b.tarih.localeCompare(a.tarih)).forEach(item => {
-            tbody.innerHTML += `<tr><td>${item.tarih}</td><td><strong>${item.aciklama}</strong></td><td>${item.kaynak.toUpperCase()}</td><td style="color:#e74c3c; font-weight:bold;">-${item.tutar.toLocaleString()} ₺</td><td><button onclick="window.silGider(${item.id})" class="sort-btn" style="background-color:var(--accent); color:white;">Geri Al (Şifreli)</button></td></tr>`;
+            tbody.innerHTML += `<tr><td>${item.tarih}</td><td><strong>${item.aciklama}</strong></td><td>${item.kaynak.toUpperCase()}</td><td style="color:#e74c3c; font-weight:bold;">-${item.tutar.toLocaleString()} ₺</td><td>
+                <button onclick="window.duzenleGider(${item.id})" class="sort-btn" style="background-color:var(--warning)">✏️ Düzenle</button>
+                <button onclick="window.silGider(${item.id})" class="sort-btn" style="background-color:var(--accent); color:white;">Geri Al (Şifreli)</button>
+            </td></tr>`;
         });
+    }
+
+    // YENİ ÖZELLİK: Gider Düzenleme
+    window.duzenleGider = function(id) {
+        if(!window.yetkiKontrolu()) return;
+        const g = window.giderler.find(item => item.id === id); if(!g) return;
+        
+        const yeniTarih = prompt("Tarih (YYYY-MM-DD):", g.tarih); if (yeniTarih === null) return;
+        const yeniTutarStr = prompt("Tutar (₺):", g.tutar); if (yeniTutarStr === null) return;
+        const yeniAciklama = prompt("Açıklama:", g.aciklama); if (yeniAciklama === null) return;
+        const yeniKaynak = prompt("Kaynak (nakit, garanti, isbank):", g.kaynak); if (yeniKaynak === null) return;
+        
+        const yeniTutar = parseFloat(yeniTutarStr) || 0;
+        
+        // Önce eski tutarı kasaya iade et
+        if (g.kaynak === 'nakit') window.eldekiNakit += g.tutar;
+        else if (g.kaynak === 'garanti') window.bankaGaranti += g.tutar;
+        else if (g.kaynak === 'isbank') window.bankaIsbank += g.tutar;
+        
+        // Yeni tutarı kasadan düş
+        if (yeniKaynak === 'nakit') window.eldekiNakit -= yeniTutar;
+        else if (yeniKaynak === 'garanti') window.bankaGaranti -= yeniTutar;
+        else if (yeniKaynak === 'isbank') window.bankaIsbank -= yeniTutar;
+        
+        g.tarih = yeniTarih;
+        g.tutar = yeniTutar;
+        g.aciklama = yeniAciklama;
+        g.kaynak = yeniKaynak;
+        
+        window.verileriKaydet();
+        alert("Gider başarıyla güncellendi.");
     }
 
     window.silGider = function(id) {
@@ -783,8 +819,22 @@
         const tbody = document.querySelector('#onlineCariTablosu tbody'); if (!tbody) return; tbody.innerHTML = '';
         window.onlineCariler.forEach(item => {
             tbody.innerHTML += `<tr><td><strong>${item.ad}</strong></td><td style="color:var(--accent); font-weight:bold;">${item.bakiye.toLocaleString()} ₺</td>
-                <td><button onclick="window.tahsilEt(${item.id})" class="btn-success" style="padding:5px; font-size:12px; width:auto;">Hesaptan Bankaya Aktar</button></td></tr>`;
+                <td>
+                    <button onclick="window.tahsilEt(${item.id})" class="btn-success" style="padding:5px; font-size:12px; width:auto; margin-right:5px;">💰 Hesaptan Bankaya Aktar</button>
+                    <button onclick="window.sifirlaOnlineCari(${item.id})" class="btn-danger" style="padding:5px; font-size:12px; width:auto; background-color: #7f8c8d;">🔄 Bakiyeyi Sıfırla/Eşitle</button>
+                </td></tr>`;
         });
+    }
+
+    // YENİ ÖZELLİK: Online Carileri Sıfırlama / Hesap Eşitleme
+    window.sifirlaOnlineCari = function(id) {
+        if(!window.yetkiKontrolu()) return;
+        const c = window.onlineCariler.find(item => item.id === id); if(!c) return;
+        const yeniBakiyeStr = prompt(`${c.ad} için yeni bakiye değerini girin (Sıfırlamak için 0 yazın):`, c.bakiye);
+        if(yeniBakiyeStr === null) return;
+        c.bakiye = parseFloat(yeniBakiyeStr) || 0;
+        window.verileriKaydet();
+        alert(`${c.ad} bakiyesi ${c.bakiye.toLocaleString()} ₺ olarak güncellendi.`);
     }
 
     window.tahsilEt = function(id) {
@@ -806,10 +856,44 @@
         let nTop = 0, mTop = 0;
         window.sahsiHarcamalar.slice().sort((a,b) => b.tarih.localeCompare(a.tarih)).forEach(item => {
             if(item.kisi === 'Nişlin') nTop += item.tutar; else mTop += item.tutar;
-            tbody.innerHTML += `<tr><td>${item.tarih}</td><td><strong>${item.kisi}</strong></td><td>${item.aciklama}</td><td>${item.kanal.toUpperCase()}</td><td style="color:#e74c3c;">-${item.tutar.toLocaleString()} ₺</td><td><button onclick="window.silSahsi(${item.id})" class="sort-btn" style="background-color:var(--accent); color:white;">Geri Al (Şifreli)</button></td></tr>`;
+            tbody.innerHTML += `<tr><td>${item.tarih}</td><td><strong>${item.kisi}</strong></td><td>${item.aciklama}</td><td>${item.kanal.toUpperCase()}</td><td style="color:#e74c3c;">-${item.tutar.toLocaleString()} ₺</td><td>
+                <button onclick="window.duzenleSahsi(${item.id})" class="sort-btn" style="background-color:var(--warning)">✏️ Düzenle</button>
+                <button onclick="window.silSahsi(${item.id})" class="sort-btn" style="background-color:var(--accent); color:white;">Geri Al (Şifreli)</button>
+            </td></tr>`;
         });
         document.getElementById('nislinToplam').innerText = nTop.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' });
         document.getElementById('mehmetToplam').innerText = mTop.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' });
+    }
+
+    // YENİ ÖZELLİK: Şahsi Harcama Düzenleme
+    window.duzenleSahsi = function(id) {
+        if(!window.yetkiKontrolu()) return;
+        const sh = window.sahsiHarcamalar.find(item => item.id === id); if(!sh) return;
+        
+        const yeniTarih = prompt("Tarih (YYYY-MM-DD):", sh.tarih); if (yeniTarih === null) return;
+        const yeniTutarStr = prompt("Tutar (₺):", sh.tutar); if (yeniTutarStr === null) return;
+        const yeniAciklama = prompt("Açıklama:", sh.aciklama); if (yeniAciklama === null) return;
+        const yeniKanal = prompt("Kasa (nakit, garanti, isbank):", sh.kanal); if (yeniKanal === null) return;
+        
+        const yeniTutar = parseFloat(yeniTutarStr) || 0;
+        
+        // Önce eskiyi kasaya iade et
+        if (sh.kanal === 'nakit') window.eldekiNakit += sh.tutar;
+        else if (sh.kanal === 'garanti') window.bankaGaranti += sh.tutar;
+        else if (sh.kanal === 'isbank') window.bankaIsbank += sh.tutar;
+        
+        // Yeniyi kasadan düş
+        if (yeniKanal === 'nakit') window.eldekiNakit -= yeniTutar;
+        else if (yeniKanal === 'garanti') window.bankaGaranti -= yeniTutar;
+        else if (yeniKanal === 'isbank') window.bankaIsbank -= yeniTutar;
+        
+        sh.tarih = yeniTarih;
+        sh.tutar = yeniTutar;
+        sh.aciklama = yeniAciklama;
+        sh.kanal = yeniKanal;
+        
+        window.verileriKaydet();
+        alert("Şahsi harcama başarıyla güncellendi.");
     }
 
     window.silSahsi = function(id) {
@@ -928,15 +1012,37 @@
     window.filtreUygula = function(tip, btn) {
         window.aktifFiltreModu = tip;
         if(btn) { document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
-        let bas = bugunStr, bit = bugunStr;
-        if(tip==='aylik') bas = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
-        else if(tip==='haftalik') { let d = new Date(), day = d.getDay(), diff = d.getDate() - day + (day == 0 ? -6:1); bas = new Date(d.setDate(diff)).toISOString().split('T')[0]; }
+        
+        let bas = "2000-01-01", bit = "2099-12-31"; // 'tum_zamanlar' varsayılan aralığı
+        
+        document.getElementById('ozelTarihGrup').style.display = (tip === 'ozel') ? 'flex' : 'none';
+        
+        if(tip === 'gunluk') {
+            bas = bugunStr; bit = bugunStr;
+        } else if(tip === 'haftalik') {
+            let d = new Date(), day = d.getDay(), diff = d.getDate() - day + (day == 0 ? -6 : 1);
+            bas = new Date(d.setDate(diff)).toISOString().split('T')[0];
+            bit = bugunStr;
+        } else if(tip === 'aylik') {
+            bas = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+            bit = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0];
+        } else if(tip === 'ozel') {
+            const parsedBas = document.getElementById('filtreBaslangic').value;
+            const parsedBit = document.getElementById('filtreBitis').value;
+            if(parsedBas && parsedBit) { bas = parsedBas; bit = parsedBit; }
+        }
+        
         raporHesapla(bas, bit);
     }
 
     window.ozelFiltreCalistir = function() {
-        const bas = document.getElementById('filtreBaslangic').value; const bit = document.getElementById('filtreBitis').value;
-        if(bas && bit) raporHesapla(bas, bit);
+        const bas = document.getElementById('filtreBaslangic').value; 
+        const bit = document.getElementById('filtreBitis').value;
+        if(bas && bit) {
+            raporHesapla(bas, bit);
+        } else {
+            alert("Lütfen başlangıç ve bitiş tarihlerinin ikisini de seçin.");
+        }
     }
 
     function raporHesapla(bas, bit) {
@@ -968,8 +1074,54 @@
     function listeleDefter() {
         const tbody = document.querySelector('#defterGecmisTablosu tbody'); if (!tbody) return; tbody.innerHTML = '';
         window.kasalar.slice().sort((a,b) => b.tarih.localeCompare(a.tarih)).forEach(item => {
-            tbody.innerHTML += `<tr><td>${item.tarih}</td><td>+${item.cNakit} ₺</td><td>+${item.cPosGaranti} ₺</td><td>+${item.cPosIsbank} ₺</td><td>${item.toplamKasadanOdenen} ₺</td><td><strong>${item.toplamCiro} ₺</strong></td><td><button onclick="window.silDefter(${item.id})" class="sort-btn" style="background-color:var(--accent); color:white;">Geri Al (Şifreli)</button></td></tr>`;
+            tbody.innerHTML += `<tr><td>${item.tarih}</td><td>+${item.cNakit} ₺</td><td>+${item.cPosGaranti} ₺</td><td>+${item.cPosIsbank} ₺</td><td>${item.toplamKasadanOdenen} ₺</td><td><strong>${item.toplamCiro} ₺</strong></td><td>
+                <button onclick="window.duzenleKasa(${item.id})" class="sort-btn" style="background-color:var(--warning)">✏️ Düzenle</button>
+                <button onclick="window.silDefter(${item.id})" class="sort-btn" style="background-color:var(--accent); color:white;">Geri Al (Şifreli)</button>
+            </td></tr>`;
         });
+    }
+
+    // YENİ ÖZELLİK: Gün Sonu Kasa Kaydı Düzenleme
+    window.duzenleKasa = function(id) {
+        if(!window.yetkiKontrolu()) return;
+        const k = window.kasalar.find(x => x.id === id); if(!k) return;
+        
+        const yeniTarih = prompt("Tarih (YYYY-MM-DD):", k.tarih); if (yeniTarih === null) return;
+        const yeniNakitStr = prompt("Nakit Ciro (Kasada kalan net tutar) (₺):", k.cNakit); if (yeniNakitStr === null) return;
+        const yeniGarantiPOSStr = prompt("Garanti POS (₺):", k.cPosGaranti); if (yeniGarantiPOSStr === null) return;
+        const yeniIsPOSStr = prompt("İş Bankası POS (₺):", k.cPosIsbank); if (yeniIsPOSStr === null) return;
+        const yeniIciGiderStr = prompt("Kasadan Ödenen Masraf (₺):", k.kIciGider); if (yeniIciGiderStr === null) return;
+        const yeniIciPersonelStr = prompt("Kasadan Ödenen Personel (₺):", k.kIciPersonel); if (yeniIciPersonelStr === null) return;
+        
+        const yeniNakit = parseFloat(yeniNakitStr) || 0;
+        const yeniGaranti = parseFloat(yeniGarantiPOSStr) || 0;
+        const yeniIs = parseFloat(yeniIsPOSStr) || 0;
+        const yeniIciGider = parseFloat(yeniIciGiderStr) || 0;
+        const yeniIciPersonel = parseFloat(yeniIciPersonelStr) || 0;
+        
+        // Önce eskileri kasadan geri çıkar
+        window.eldekiNakit -= k.cNakit;
+        window.bankaGaranti -= k.cPosGaranti;
+        window.bankaIsbank -= k.cPosIsbank;
+        
+        // Yenileri kasalara ekle
+        window.eldekiNakit += yeniNakit;
+        window.bankaGaranti += yeniGaranti;
+        window.bankaIsbank += yeniIs;
+        
+        k.tarih = yeniTarih;
+        k.cNakit = yeniNakit;
+        k.cPosGaranti = yeniGaranti;
+        k.cPosIsbank = yeniIs;
+        k.kIciGider = yeniIciGider;
+        k.kIciPersonel = yeniIciPersonel;
+        k.toplamKasadanOdenen = yeniIciGider + yeniIciPersonel;
+        
+        // Online sipariş tutarları değişmeden toplam ciroyu yeniden hesapla
+        k.toplamCiro = yeniNakit + k.toplamKasadanOdenen + yeniGaranti + yeniIs + (k.toplamOnlineCiro || 0);
+        
+        window.verileriKaydet();
+        alert("Gün sonu kasa kaydı güncellendi.");
     }
 
     window.silDefter = function(id) {
