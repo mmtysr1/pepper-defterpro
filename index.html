@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pepper Döner - Profesyonel Mobil Defter V7.3</title>
+    <title>Pepper Döner - Profesyonel Mobil Defter V7.4</title>
     
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -115,7 +115,7 @@
     </div>
 
     <header>
-        <h1>Pepper Döner Yönetim Paneli <span style="font-size:14px; color:var(--accent);">V7.3 PRO</span></h1>
+        <h1>Pepper Döner Yönetim Paneli <span style="font-size:14px; color:var(--accent);">V7.4 PRO</span></h1>
         <div class="header-buttons">
             <span id="syncStatus">Bulut Bağlantısı...</span>
             <button onclick="window.veriyiYedekle()" style="width: auto; background-color: #8e44ad;">Yedek İndir (JSON)</button>
@@ -146,7 +146,6 @@
         <button class="tab-btn" onclick="window.sekmeAc('raporSekmesi', this)">Raporlar & Analiz</button>
     </div>
 
-    <!-- SEKMELERİN İÇERİKLERİ -->
     <div id="kasaSekmesi" class="tab-content active">
         <div class="grid">
             <div class="card">
@@ -473,9 +472,6 @@
             window.bankaIsbank = parseFloat(data.bankaIsbank) || 0;
             document.getElementById("syncStatus").innerText = "Bulut Senkronize";
             document.getElementById("syncStatus").style.backgroundColor = "#2ecc71";
-        } else {
-            krediPlaniniOlustur("Genel Banka Kredisi", 40779.80, 12, 15);
-            window.verileriKaydet();
         }
         window.herSeyiyenile();
     }, (error) => {
@@ -495,6 +491,16 @@
             document.getElementById("syncStatus").innerText = "Bulut Senkronize";
             document.getElementById("syncStatus").style.backgroundColor = "#2ecc71";
         });
+    }
+
+    window.yetkiKontrolu = function() {
+        const sifre = prompt("Bu işlem için yetki şifresini girin:");
+        if (sifre === "0423") {
+            return true;
+        } else {
+            alert("Hatalı Şifre! İşlem iptal edildi.");
+            return false;
+        }
     }
 
     window.sekmeAc = function(tabId, btn) {
@@ -638,12 +644,13 @@
 
     function listeleDetayliPuantajGecmisi() {
         const tbody = document.querySelector('#detayliPuantajGecmisTablosu tbody'); if (!tbody) return; tbody.innerHTML = '';
-        window.puantajlar.sort((a,b) => b.tarih.localeCompare(a.tarih)).forEach(pu => {
-            tbody.innerHTML += `<tr><td>${pu.tarih}</td><td>${pu.perAd}</td><td>${pu.durum}</td><td>${pu.yevmiye} ₺</td><td><button onclick="window.silPuantajKaydi(${pu.id})" class="sort-btn" style="background-color:var(--accent); color:white;">Geri Al</button></td></tr>`;
+        window.puantajlar.slice().sort((a,b) => b.tarih.localeCompare(a.tarih)).forEach(pu => {
+            tbody.innerHTML += `<tr><td>${pu.tarih}</td><td>${pu.perAd}</td><td>${pu.durum}</td><td>${pu.yevmiye} ₺</td><td><button onclick="window.silPuantajKaydi(${pu.id})" class="sort-btn" style="background-color:var(--accent); color:white;">Geri Al (Şifreli)</button></td></tr>`;
         });
     }
 
     window.silPuantajKaydi = function(puId) {
+        if(!window.yetkiKontrolu()) return;
         const pu = window.puantajlar.find(p => p.id === puId); if (!pu) return;
         const per = window.personeller.find(p => p.id === pu.perId); if (per) per.bakiye -= pu.yevmiye;
         window.puantajlar = window.puantajlar.filter(p => p.id !== puId); window.verileriKaydet();
@@ -652,15 +659,18 @@
     window.personelOdemeGiris = function(id, tur) {
         const per = window.personeller.find(p => p.id === id); if(!per) return;
         const miktar = parseFloat(prompt("Ödeme / Avans Tutarı:")); if (isNaN(miktar) || miktar <= 0) return;
-        const kanal = prompt("Kasa Tipi: 1=Nakit, 2=Garanti, 3=İş Bankası");
-        let kYolu = kanal === '1' ? 'nakit' : (kanal === '2' ? 'garanti' : (kanal === '3' ? 'isbank' : '')); if(!kYolu) return;
+        const canal = prompt("Kasa Tipi: 1=Nakit, 2=Garanti, 3=İş Bankası");
+        let kYolu = canal === '1' ? 'nakit' : (canal === '2' ? 'garanti' : (canal === '3' ? 'isbank' : '')); if(!kYolu) return;
         if(kYolu === 'nakit') window.eldekiNakit -= miktar; else if(kYolu === 'garanti') window.bankaGaranti -= miktar; else window.bankaIsbank -= miktar;
         per.bakiye -= miktar;
         window.giderler.push({ id: Date.now(), tarih: bugunStr, tutar: miktar, kaynak: kYolu, aciklama: `${per.ad} - ${tur.toUpperCase()}` });
         window.verileriKaydet();
     }
 
-    window.silPersonel = function(id) { if(confirm('Personel silinsin mi?')) { window.personeller = window.personeller.filter(p => p.id !== id); window.verileriKaydet(); } }
+    window.silPersonel = function(id) { 
+        if(!window.yetkiKontrolu()) return;
+        if(confirm('Personel silinsin mi?')) { window.personeller = window.personeller.filter(p => p.id !== id); window.verileriKaydet(); } 
+    }
 
     window.giderEkle = function(e) {
         e.preventDefault(); const tarih = document.getElementById('giderTarih').value; const tutar = parseFloat(document.getElementById('giderTutar').value) || 0;
@@ -671,12 +681,13 @@
 
     function listeleGiderler() {
         const tbody = document.querySelector('#giderTablosu tbody'); if (!tbody) return; tbody.innerHTML = '';
-        window.giderler.sort((a,b) => b.tarih.localeCompare(a.tarih)).forEach(item => {
-            tbody.innerHTML += `<tr><td>${item.tarih}</td><td><strong>${item.aciklama}</strong></td><td>${item.kaynak.toUpperCase()}</td><td style="color:#e74c3c; font-weight:bold;">-${item.tutar.toLocaleString()} ₺</td><td><button onclick="window.silGider(${item.id})" class="sort-btn" style="background-color:var(--accent); color:white;">Sil</button></td></tr>`;
+        window.giderler.slice().sort((a,b) => b.tarih.localeCompare(a.tarih)).forEach(item => {
+            tbody.innerHTML += `<tr><td>${item.tarih}</td><td><strong>${item.aciklama}</strong></td><td>${item.kaynak.toUpperCase()}</td><td style="color:#e74c3c; font-weight:bold;">-${item.tutar.toLocaleString()} ₺</td><td><button onclick="window.silGider(${item.id})" class="sort-btn" style="background-color:var(--accent); color:white;">Geri Al (Şifreli)</button></td></tr>`;
         });
     }
 
     window.silGider = function(id) {
+        if(!window.yetkiKontrolu()) return;
         if(confirm('Mali gider silinsin mi?')) {
             const g = window.giderler.find(item => item.id === id);
             if(g) { if(g.kaynak === 'nakit') window.eldekiNakit += g.tutar; else if(g.kaynak === 'garanti') window.bankaGaranti += g.tutar; else if(g.kaynak === 'isbank') window.bankaIsbank += g.tutar; }
@@ -699,7 +710,7 @@
                     <button onclick="window.toptanciBorcEkle(${item.id})" class="sort-btn" style="background-color:var(--accent); color:white;">📦 Mal Geldi (Borç Yaz)</button>
                     <button onclick="window.toptanciOdemeYap(${item.id})" class="sort-btn" style="background-color:var(--success); color:white;">💳 Ödeme Yap (Borç Düş)</button>
                     <button onclick="window.duzenleToptanci(${item.id})" class="sort-btn" style="background-color:var(--warning)">✏️ Düzenle / Hesap Eşitle</button>
-                    <button onclick="window.silToptanci(${item.id})" class="sort-btn" style="background-color:#7f8c8d; color:white;">Sil</button>
+                    <button onclick="window.silToptanci(${item.id})" class="sort-btn" style="background-color:#7f8c8d; color:white;">Sil (Şifreli)</button>
                 </td>
             </tr>`;
         });
@@ -727,15 +738,18 @@
     window.toptanciOdemeYap = function(id) {
         const top = window.toptancilar.find(t => t.id === id); if(!top) return;
         const miktar = parseFloat(prompt(`${top.ad} firmasına yapılacak ödeme tutarı (₺):`)); if (isNaN(miktar) || miktar <= 0) return;
-        const kanal = prompt("Ödemenin yapılacağı kasa: 1=Nakit, 2=Garanti, 3=İş");
-        let kYolu = kanal === '1' ? 'nakit' : (kanal === '2' ? 'garanti' : (kanal === '3' ? 'isbank' : '')); if(!kYolu) return;
+        const canal = prompt("Ödemenin yapılacağı kasa: 1=Nakit, 2=Garanti, 3=İş");
+        let kYolu = canal === '1' ? 'nakit' : (canal === '2' ? 'garanti' : (canal === '3' ? 'isbank' : '')); if(!kYolu) return;
         if(kYolu === 'nakit') window.eldekiNakit -= miktar; else if(kYolu === 'garanti') window.bankaGaranti -= miktar; else window.bankaIsbank -= miktar;
         top.borc = Math.max(0, top.borc - miktar);
         window.giderler.push({ id: Date.now(), tarih: bugunStr, tutar: miktar, kaynak: kYolu, aciklama: `${top.ad} Borç Ödemesi` });
         window.verileriKaydet();
     }
 
-    window.silToptanci = function(id) { if(confirm('Toptancı kaydı silinsin mi?')) { window.toptancilar = window.toptancilar.filter(t => t.id !== id); window.verileriKaydet(); } }
+    window.silToptanci = function(id) { 
+        if(!window.yetkiKontrolu()) return;
+        if(confirm('Toptancı kaydı silinsin mi?')) { window.toptancilar = window.toptancilar.filter(t => t.id !== id); window.verileriKaydet(); } 
+    }
 
     window.stokKartEkle = function(e) {
         e.preventDefault(); window.stoklar.push({ id: Date.now(), ad: document.getElementById('stokUrunAd').value.trim(), miktar: parseInt(document.getElementById('stokUrunMiktar').value) || 0, kalan: 0 });
@@ -781,24 +795,25 @@
 
     window.sahsiHarcamaEkle = function(e) {
         e.preventDefault(); const tarih = document.getElementById('sahsiTarih').value; const kisi = document.getElementById('sahsiKisi').value;
-        const tutar = parseFloat(document.getElementById('sahsiTutar').value) || 0; const kanal = document.getElementById('sahsiKanal').value;
-        if(kanal === 'nakit') window.eldekiNakit -= tutar; else if(kanal === 'garanti') window.bankaGaranti -= tutar; else window.bankaIsbank -= tutar;
-        window.sahsiHarcamalar.push({ id: Date.now(), tarih, kisi, tutar, kanal, aciklama: document.getElementById('sahsiAciklama').value.trim() });
+        const tutar = parseFloat(document.getElementById('sahsiTutar').value) || 0; const canal = document.getElementById('sahsiKanal').value;
+        if(canal === 'nakit') window.eldekiNakit -= tutar; else if(canal === 'garanti') window.bankaGaranti -= tutar; else window.bankaIsbank -= tutar;
+        window.sahsiHarcamalar.push({ id: Date.now(), tarih, kisi, tutar, kanal: canal, aciklama: document.getElementById('sahsiAciklama').value.trim() });
         window.verileriKaydet();
     }
 
     function listeleSahsiHarcamalar() {
         const tbody = document.querySelector('#sahsiHarcamaTablosu tbody'); if (!tbody) return; tbody.innerHTML = '';
         let nTop = 0, mTop = 0;
-        window.sahsiHarcamalar.forEach(item => {
+        window.sahsiHarcamalar.slice().sort((a,b) => b.tarih.localeCompare(a.tarih)).forEach(item => {
             if(item.kisi === 'Nişlin') nTop += item.tutar; else mTop += item.tutar;
-            tbody.innerHTML += `<tr><td>${item.tarih}</td><td><strong>${item.kisi}</strong></td><td>${item.aciklama}</td><td>${item.kanal.toUpperCase()}</td><td style="color:#e74c3c;">-${item.tutar.toLocaleString()} ₺</td><td><button onclick="window.silSahsi(${item.id})" class="sort-btn">Sil</button></td></tr>`;
+            tbody.innerHTML += `<tr><td>${item.tarih}</td><td><strong>${item.kisi}</strong></td><td>${item.aciklama}</td><td>${item.kanal.toUpperCase()}</td><td style="color:#e74c3c;">-${item.tutar.toLocaleString()} ₺</td><td><button onclick="window.silSahsi(${item.id})" class="sort-btn" style="background-color:var(--accent); color:white;">Geri Al (Şifreli)</button></td></tr>`;
         });
         document.getElementById('nislinToplam').innerText = nTop.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' });
         document.getElementById('mehmetToplam').innerText = mTop.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' });
     }
 
     window.silSahsi = function(id) {
+        if(!window.yetkiKontrolu()) return;
         const sh = window.sahsiHarcamalar.find(item => item.id === id);
         if(sh) { if(sh.kanal === 'nakit') window.eldekiNakit += sh.tutar; else if(sh.kanal === 'garanti') window.bankaGaranti += sh.tutar; else if(sh.kanal === 'isbank') window.bankaIsbank += sh.tutar; }
         window.sahsiHarcamalar = window.sahsiHarcamalar.filter(item => item.id !== id); window.verileriKaydet();
@@ -817,7 +832,7 @@
 
     function listeleKrediTaksitleri() {
         const tbody = document.querySelector('#krediOdemeleriTablosu tbody'); if (!tbody) return; tbody.innerHTML = '';
-        window.krediler.sort((a,b) => a.vadeTarihi.localeCompare(b.vadeTarihi)).forEach(t => {
+        window.krediler.slice().sort((a,b) => a.vadeTarihi.localeCompare(b.vadeTarihi)).forEach(t => {
             let kGun = window.kalanGunHesapla(t.vadeTarihi);
             let dYazisi = t.odendi ? `<span style="color:#2ecc71; font-weight:bold;">Ödendi (${t.odemeTarihi})</span>` : (kGun < 0 ? `<span style="color:#e74c3c; font-weight:bold;">${Math.abs(kGun)} Gün Gecikti</span>` : (kGun === 0 ? `<span style="color:#e67e22; font-weight:bold;">Bugün Ödenecek</span>` : `<span>${kGun} Gün Kaldı</span>`));
             tbody.innerHTML += `<tr><td><strong>${t.isim} [${t.taksitNo}]</strong></td><td>${t.vadeTarihi}</td><td>${t.tutar.toLocaleString()} ₺</td><td>${dYazisi}</td><td>${t.odendi?'':`<button onclick="window.krediOde(${t.id})" class="sort-btn" style="background-color:var(--success); color:white;">Kapat</button>`}</td></tr>`;
@@ -863,7 +878,7 @@
 
     function listeleIsletmeNotlari() {
         const tbody = document.querySelector('#isletmeNotlariTablosu tbody'); if (!tbody) return; tbody.innerHTML = '';
-        window.isletmeNotlari.forEach(item => {
+        window.isletmeNotlari.slice().sort((a,b) => b.tarih.localeCompare(a.tarih)).forEach(item => {
             let statusBadge = item.durum === 'bekliyor' ? '🔴 Bekliyor' : `🟢 Tahsil Edildi (${item.tahsilTarihi} - ${item.tahsilKanali.toUpperCase()})`;
             let d = item.tur==='alacak_bekleyen'?`[Alacak: ${item.tutar} ₺] ${item.detay} (${statusBadge})` : item.detay;
             tbody.innerHTML += `<tr>
@@ -872,17 +887,16 @@
                 <td>${d}</td>
                 <td>
                     ${item.tur==='alacak_bekleyen'&&item.durum==='bekliyor'?`<button onclick="window.notTahsil(${item.id})" class="sort-btn" style="background-color:var(--success); color:white;">💰 Tahsil Et</button>`:''}
-                    <button onclick="window.silIsletmeNotu(${item.id})" class="sort-btn" style="background-color:var(--accent); color:white;">Sil</button>
+                    <button onclick="window.silIsletmeNotu(${item.id})" class="sort-btn" style="background-color:var(--accent); color:white;">Sil (Şifreli)</button>
                 </td>
             </tr>`;
         });
     }
 
-    // YENİ GÜNCELLEME: Tahsilat Yaparken Banka/Kasa Seçim Ekranı
     window.notTahsil = function(id) { 
         const item = window.isletmeNotlari.find(n => n.id === id); if(!item) return;
-        const kanal = prompt("Tahsil edilen emanet para nereye girsin?\n1 = Eldeki Nakit Kasası\n2 = Garanti Bankası Hesabı\n3 = İş Bankası Hesabı");
-        let kYolu = kanal === '1' ? 'nakit' : (kanal === '2' ? 'garanti' : (kanal === '3' ? 'isbank' : '')); if(!kYolu) return;
+        const canal = prompt("Tahsil edilen emanet para nereye girsin?\n1 = Eldeki Nakit Kasası\n2 = Garanti Bankası Hesabı\n3 = İş Bankası Hesabı");
+        let kYolu = canal === '1' ? 'nakit' : (canal === '2' ? 'garanti' : (canal === '3' ? 'isbank' : '')); if(!kYolu) return;
         
         if(kYolu === 'nakit') window.eldekiNakit += item.tutar; 
         else if(kYolu === 'garanti') window.bankaGaranti += item.tutar; 
@@ -896,9 +910,8 @@
         alert(`${item.tutar.toLocaleString()} ₺ tutar ${kYolu.toUpperCase()} hesabına aktarılarak tahsil edildi!`);
     }
 
-    // YENİ GÜNCELLEME: Not Silinince Parayı Kasadan Otomatik Geri Düşme Güvenliği
     window.silIsletmeNotu = function(id) {
-        if(!confirm("Bu kaydı tamamen silmek istediğinize emin misiniz?")) return;
+        if(!window.yetkiKontrolu()) return;
         const item = window.isletmeNotlari.find(n => n.id === id); if(!item) return;
         
         if (item.tur === 'alacak_bekleyen' && item.durum === 'tahsil_edildi') {
@@ -954,19 +967,24 @@
 
     function listeleDefter() {
         const tbody = document.querySelector('#defterGecmisTablosu tbody'); if (!tbody) return; tbody.innerHTML = '';
-        window.kasalar.sort((a,b) => b.tarih.localeCompare(a.tarih)).forEach(item => {
-            tbody.innerHTML += `<tr><td>${item.tarih}</td><td>+${item.cNakit} ₺</td><td>+${item.cPosGaranti} ₺</td><td>+${item.cPosIsbank} ₺</td><td>${item.toplamKasadanOdenen} ₺</td><td><strong>${item.toplamCiro} ₺</strong></td><td><button onclick="window.silDefter(${item.id})" class="sort-btn">Sil</button></td></tr>`;
+        window.kasalar.slice().sort((a,b) => b.tarih.localeCompare(a.tarih)).forEach(item => {
+            tbody.innerHTML += `<tr><td>${item.tarih}</td><td>+${item.cNakit} ₺</td><td>+${item.cPosGaranti} ₺</td><td>+${item.cPosIsbank} ₺</td><td>${item.toplamKasadanOdenen} ₺</td><td><strong>${item.toplamCiro} ₺</strong></td><td><button onclick="window.silDefter(${item.id})" class="sort-btn" style="background-color:var(--accent); color:white;">Geri Al (Şifreli)</button></td></tr>`;
         });
     }
 
     window.silDefter = function(id) {
+        if(!window.yetkiKontrolu()) return;
         if(confirm('Kasa kaydı iptal edilsin mi?')) {
             const k = window.kasalar.find(x => x.id === id); if(k) { window.eldekiNakit -= k.cNakit; window.bankaGaranti -= k.cPosGaranti; window.bankaIsbank -= k.cPosIsbank; }
             window.kasalar = window.kasalar.filter(x => x.id !== id); window.verileriKaydet();
         }
     }
 
-    window.sadeceRakamlariSifirla = function() { if(confirm('Tüm bakiyeler sıfırlansın mı?')) { window.eldekiNakit = 0; window.bankaGaranti = 0; window.bankaIsbank = 0; window.kasalar = []; window.giderler = []; window.verileriKaydet(); } }
+    window.sadeceRakamlariSifirla = function() { 
+        if(!window.yetkiKontrolu()) return;
+        if(confirm('Tüm bakiyeler sıfırlansın mı?')) { window.eldekiNakit = 0; window.bankaGaranti = 0; window.bankaIsbank = 0; window.kasalar = []; window.giderler = []; window.verileriKaydet(); } 
+    }
+    
     window.veriyiYedekle = function() { window.open("data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ kasalar: window.kasalar, personeller: window.personeller, giderler: window.giderler, toptancilar: window.toptancilar, stoklar: window.stoklar, sahsiHarcamalar: window.sahsiHarcamalar, krediler: window.krediler, isletmeNotlari: window.isletmeNotlari, onlineCariler: window.onlineCariler, eldekiNakit: window.eldekiNakit, bankaGaranti: window.bankaGaranti, bankaIsbank: window.bankaIsbank }))); }
 </script>
 </body>
